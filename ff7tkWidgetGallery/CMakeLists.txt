@@ -31,6 +31,7 @@ target_include_directories(ff7tkWidgetGallery PRIVATE
     $<BUILD_INTERFACE:${CMAKE_BINARY_DIR}/src/data>
     $<BUILD_INTERFACE:${CMAKE_BINARY_DIR}/src/widgets>
     $<BUILD_INTERFACE:${CMAKE_BINARY_DIR}/src/formats>
+    $<BUILD_INTERFACE:${CMAKE_BINARY_DIR}/src/utils>
 )
 
 target_link_libraries ( ff7tkWidgetGallery PRIVATE
@@ -44,7 +45,7 @@ target_link_libraries ( ff7tkWidgetGallery PRIVATE
 
 if(APPLE)
     set_target_properties(ff7tkWidgetGallery PROPERTIES
-        INSTALL_RPATH @loader_path
+        INSTALL_RPATH "@executable_path/../Frameworks @executable_path @loader_path @loader_path/../Frameworks"
         BUILD_WITH_INSTALL_RPATH TRUE
         MACOSX_BUNDLE_DISPLAY_NAME "ff7tkWidgetGallery"
         MACOSX_BUNDLE_GUI_IDENTIFIER "org.ff7tk.WidgetGallery"
@@ -55,15 +56,41 @@ if(APPLE)
         MAXOSX_BUNDLE_ICON_FILE ff7tkWidgetGallery.icns
         MACOSX_BUNDLE_BUNDLE_VERSION ${PROJECT_VERSION}
     )
+
+    foreach (library ff7tk ff7tkFormats ff7tkUtils ff7tkWidgets)
+        add_custom_command(TARGET ff7tkWidgetGallery POST_BUILD
+           COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:${library}> $<TARGET_BUNDLE_CONTENT_DIR:ff7tkWidgetGallery>/MacOS/
+        )
+    endforeach()
+
+    add_custom_command(TARGET ff7tkWidgetGallery POST_BUILD
+        COMMAND macdeployqt ${CMAKE_CURRENT_BINARY_DIR}/\${CONFIGURATION}/ff7tkWidgetGallery.app
+    )
+
 elseif(UNIX AND NOT APPLE)
     set_target_properties(ff7tkWidgetGallery PROPERTIES
         INSTALL_RPATH "\$ORIGIN/../lib"
     )
-    install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/ff7tkWidgetGallery.desktop" DESTINATION share/applications/)
-    install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/ff7tkWidgetGallery.png" DESTINATION share/pixmaps)
+    install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/ff7tkWidgetGallery.desktop" DESTINATION share/applications/ COMPONENT ff7tkWidgetGallery_RUNTIME)
+    install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/ff7tkWidgetGallery.png" DESTINATION share/pixmaps COMPONENT ff7tkWidgetGallery_RUNTIME)
 endif()
 
 install(TARGETS ff7tkWidgetGallery
     BUNDLE DESTINATION ${CMAKE_INSTALL_BINDIR}
+      COMPONENT ff7tkWidgetGallery_RUNTIME
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+      COMPONENT ff7tkWidgetGallery_RUNTIME
 )
+#if(APPLE)
+#    get_target_property(QtCore_location Qt5::Core LOCATION)
+
+#    install(
+#      CODE [[
+#        include(BundleUtilities)
+#        set(DIRS ${QtCore_location} ${CMAKE_BINARY_DIR}/src/data ${CMAKE_BINARY_DIR}/src/formats ${CMAKE_BINARY_DIR}/src/utils ${CMAKE_BINARY_DIR}/src/widgets)
+#        fixup_bundle("${CMAKE_INSTALL_PREFIX}/bin/ff7tkWidgetGallery.app" "" "${DIRS}")
+#      ]]
+#      COMPONENT ff7tkWidgetGallery_RUNTIME
+#    )
+
+#endif()
