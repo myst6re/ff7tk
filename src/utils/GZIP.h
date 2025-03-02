@@ -24,6 +24,7 @@ public:
     static QByteArray decompress(const QString &path, int decSize, Strategy strategy = StrategyDefault);
     static QByteArray decompressNoHeader(const char *data, int size);
     static QByteArray compressNoHeader(const char *data, int size, int level = -1);
+    static QByteArray inflateAll(const char *data, int size, qsizetype uncompressedSize);
     static ulong crc(const char *data, int size);
 private:
     static char strategyToChar(Strategy strategy);

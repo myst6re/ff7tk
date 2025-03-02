@@ -121,6 +121,43 @@ QByteArray GZIP::compressNoHeader(const char *data, int size, int level)
     return ret;
 }
 
+QByteArray GZIP::inflateAll(const char *data, int size, qsizetype uncompressedSize)
+{
+    QByteArray ret;
+    ret.reserve(uncompressedSize);
+    z_stream z = z_stream();
+    const int windowBits = 15;
+
+    qDebug() << "GZIP::inflateAll" << size << uncompressedSize;
+
+    z.next_in = reinterpret_cast<Bytef *>(const_cast<char *>(data));
+    z.avail_in = size;
+    inflateInit2(&z, windowBits);
+    z.next_out = reinterpret_cast<Bytef *>(ret.data());
+    z.avail_out = uncompressedSize;
+
+    int err = Z_OK;
+
+    do {
+#if (ZLIB_VERNUM < 0x1280)
+        err = z_inflate(&z, Z_FINISH);
+#else
+        err = inflate(&z, Z_FINISH);
+#endif
+    } while (Z_OK == err);
+
+    if (Z_STREAM_END != err) {
+        ret.clear();
+    } else {
+        ret.resize(uncompressedSize - z.avail_out);
+    }
+    qDebug() << "GZIP::inflateAll" << z.avail_out << ret.size() << err;
+
+    inflateEnd(&z);
+
+    return ret;
+}
+
 ulong GZIP::crc(const char *data, int size)
 {
 #if (ZLIB_VERNUM < 0x1280)
