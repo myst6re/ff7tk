@@ -7,8 +7,26 @@ find_package(Qt6 ${REQUIRED_QT_VERSION} REQUIRED NO_MODULE COMPONENTS
     Svg
     Xml
 )
+set(UTILS ON CACHE BOOL "Build ff7tkUtils Lib" FORCE)
+find_library(ff7tkUtils ${CMAKE_BINARY_DIR}/src/utils)
 
 add_subdirectory(crypto)
+
+find_package( ZLIB REQUIRED)
+sbom_add(PACKAGE ZLIB VERSION ${ZLIB_VERSION})
+
+if(ZLIB_FOUND)
+    define_property(GLOBAL PROPERTY zlib_target BRIEF_DOCS "zlib dll path" FULL_DOCS "zlib.dll path")
+    if(EXISTS ${ZLIB_ROOT}/bin/zlib.dll)
+        set_property(GLOBAL APPEND PROPERTY zlib_target "${ZLIB_ROOT}/bin/zlib.dll")
+    elseif(EXISTS ${ZLIB_ROOT}/bin/zlib1.dll)
+        set_property(GLOBAL APPEND PROPERTY zlib_target "${ZLIB_ROOT}/bin/zlib1.dll")
+    elseif(EXISTS ${ZLIB_ROOT}/bin/libzlib.dll)
+        set_property(GLOBAL APPEND PROPERTY zlib_target "${ZLIB_ROOT}/bin/libzlib.dll")
+    elseif(EXISTS ${ZLIB_ROOT}/bin/libzlib1.dll)
+        set_property(GLOBAL APPEND PROPERTY zlib_target "${ZLIB_ROOT}/bin/libzlib1.dll")
+    endif()
+endif()
 
 set ( ff7tkData_SRC
         FF7Achievements.cpp  FF7Char.cpp     FF7FieldItemList.cpp
@@ -41,6 +59,7 @@ set (ff7tkData_PublicLIBLINKS
       Qt::Xml
       Qt::Svg
       Qt::Core5Compat
+      ZLIB::ZLIB
 )
 
 set (ff7tkData_PrivateLIBLINKS

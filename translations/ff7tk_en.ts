@@ -6943,6 +6943,10 @@ The km/h speeds are calculated while playing </translation>
         <source>XP AR GS Caetla SmartLink Dantel</source>
         <translation>XP AR GS Caetla SmartLink Dantel</translation>
     </message>
+    <message>
+        <source>Retroarch Compressed Savedata</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>ItemPreview</name>
