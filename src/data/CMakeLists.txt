@@ -7,6 +7,8 @@ find_package(Qt6 ${REQUIRED_QT_VERSION} REQUIRED NO_MODULE COMPONENTS
     Svg
     Xml
 )
+set(UTILS ON CACHE BOOL "Build ff7tkUtils Lib" FORCE)
+find_library(ff7tkUtils ${CMAKE_BINARY_DIR}/src/utils)
 
 add_subdirectory(crypto)
 
@@ -41,6 +43,7 @@ set (ff7tkData_PublicLIBLINKS
       Qt::Xml
       Qt::Svg
       Qt::Core5Compat
+      ff7tk::ff7tkUtils
 )
 
 set (ff7tkData_PrivateLIBLINKS
