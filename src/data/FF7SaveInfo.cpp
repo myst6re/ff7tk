@@ -113,6 +113,7 @@ QByteArray FF7SaveInfo::fileIdentifier(FF7SaveInfo::FORMAT format)
 //    case FORMAT::DEX: return get()->d->DEX_FILE_ID;
     case FORMAT::VGS: return get()->d->VGS_FILE_ID;
     case FORMAT::SWITCH: return get()->d->SWITCH_FILE_ID;
+    case FORMAT::RZIP: return get()->d->RZIP_FILE_ID;
     default: return QByteArray();
     }
 }

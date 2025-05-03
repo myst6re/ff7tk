@@ -6954,6 +6954,10 @@ Battaglia %1</translation>
         <source>Known FF7 Save Types (%1)</source>
         <translation>File di salvataggio FF7 noti (%1)</translation>
     </message>
+    <message>
+        <source>Retroarch Compressed Savedata</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>ItemPreview</name>

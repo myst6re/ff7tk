@@ -6943,6 +6943,10 @@ Die km / h beschleunigt berechnet werden während des Spielens </translation>
         <source>XP AR GS Caetla SmartLink Dantel</source>
         <translation type="unfinished">XP AR GS Caetla SmartLink Dantel</translation>
     </message>
+    <message>
+        <source>Retroarch Compressed Savedata</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>ItemPreview</name>

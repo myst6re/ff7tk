@@ -106,13 +106,36 @@ public:
      * @param file - A File to check the format of
      * @return The Format of the file
      */
-    FF7SaveInfo::FORMAT fileDataFormat(QFile &file);
+    inline FF7SaveInfo::FORMAT fileDataFormat(QFile &file) {
+        return fileDataFormat(&file, file.fileName());
+    }
+
+    /**
+     * @brief fileFormat- Read a file and get its Format.
+     * @param io - A File to check the format of
+     * @param fileName - A File Name to check the format of
+     * @return The Format of the file
+     */
+    FF7SaveInfo::FORMAT fileDataFormat(QIODevice *io, const QString &fileName = QString());
+
+    /**
+     * @brief Say if file format is compressed
+     * @param fileFormat - A File to check the format of
+     * @return True is the format needs to be uncompressed
+     */
+    bool fileFormatIsCompressed(FF7SaveInfo::FORMAT fileFormat);
 
     /** \brief attempt to load fileName as ff7save
      *  \param fileName file that will be loaded
      *  \return True if Successful
     */
     bool loadFile(const QString &fileName);
+
+    /** \brief attempt to uncompress the file if format is compressed
+     *  \param io - Compressed file
+     *  \return Uncompressed data or empty on error
+    */
+    QByteArray uncompressFile(QIODevice *io);
 
     /** \brief attempt to save fileName as ff7save
      *  \param fileName file that will be saved
@@ -1019,6 +1042,7 @@ private:
      * @return A QString that contains the md5sum or an empty string if its failed
      */
     QString md5sum(QString fileName, QString UserID);
+    static QByteArray inflateAll(const char *data, int size, qsizetype uncompressedSize);
 
     QString fileblock(const QString &fileName);
     QString filetimestamp(QString fileName);

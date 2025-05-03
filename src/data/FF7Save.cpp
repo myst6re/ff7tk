@@ -19,6 +19,7 @@
 #include <FF7Materia>
 #include <FF7Char>
 
+#include <zlib.h>
 // I'm not installing this header.
 #include "crypto/aes.h"
 
@@ -32,26 +33,26 @@ FF7Save::FF7Save()
     buffer_slot.clear();
 }
 
-FF7SaveInfo::FORMAT FF7Save::fileDataFormat(QFile &file)
+FF7SaveInfo::FORMAT FF7Save::fileDataFormat(QIODevice *io, const QString &fileName)
 {
-    if(!file.isOpen())
+    if(!io->isOpen())
         return FF7SaveInfo::FORMAT::UNKNOWN;
 
-    auto file_size = file.size();
+    auto file_size = io->size();
     /*~~~~~~~~~~~~~~~~~~~~~~~~~~Set File Type Vars ~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
     //decide the file type
-    if ((file_size == FF7SaveInfo::fileSize(FF7SaveInfo::FORMAT::PC)) && (file.peek(25).startsWith(FF7SaveInfo::fileIdentifier(FF7SaveInfo::FORMAT::PC)))) {
-        if(file.fileName().endsWith(QStringLiteral("ff7")))
+    if ((file_size == FF7SaveInfo::fileSize(FF7SaveInfo::FORMAT::PC)) && (io->peek(25).startsWith(FF7SaveInfo::fileIdentifier(FF7SaveInfo::FORMAT::PC)))) {
+        if(fileName.endsWith(QStringLiteral("ff7")))
             return FF7SaveInfo::FORMAT::PC;
-        if(file.fileName().contains(QStringLiteral("ff7slot")))
+        if(fileName.contains(QStringLiteral("ff7slot")))
             return FF7SaveInfo::FORMAT::SWITCH;
         return FF7SaveInfo::FORMAT::UNKNOWN;
     }
-    if ((file_size == FF7SaveInfo::fileSize(FF7SaveInfo::FORMAT::VMC)) && (file.peek(25).startsWith(FF7SaveInfo::fileIdentifier(FF7SaveInfo::FORMAT::VMC))))
+    if ((file_size == FF7SaveInfo::fileSize(FF7SaveInfo::FORMAT::VMC)) && (io->peek(25).startsWith(FF7SaveInfo::fileIdentifier(FF7SaveInfo::FORMAT::VMC))))
         return FF7SaveInfo::FORMAT::VMC;
-    if (((FF7SaveInfo::fileSize(FF7SaveInfo::FORMAT::PS3) - FF7SaveInfo::fileHeaderSize(FF7SaveInfo::FORMAT::PS3)) % FF7SaveInfo::fileSize(FF7SaveInfo::FORMAT::PSX) == 0) && (file.peek(25)).startsWith(FF7SaveInfo::fileIdentifier(FF7SaveInfo::FORMAT::PS3)))
+    if (((FF7SaveInfo::fileSize(FF7SaveInfo::FORMAT::PS3) - FF7SaveInfo::fileHeaderSize(FF7SaveInfo::FORMAT::PS3)) % FF7SaveInfo::fileSize(FF7SaveInfo::FORMAT::PSX) == 0) && (io->peek(25)).startsWith(FF7SaveInfo::fileIdentifier(FF7SaveInfo::FORMAT::PS3)))
     {
-        char psvType = file.peek(0x40).at(FF7SaveInfo::extraPSVOffsets(FF7SaveInfo::PSVINFO::SAVETYPE));
+        char psvType = io->peek(0x40).at(FF7SaveInfo::extraPSVOffsets(FF7SaveInfo::PSVINFO::SAVETYPE));
         if (psvType == 0x14)
             return FF7SaveInfo::FORMAT::PS3;
         QTextStream(stdout) << tr("Unable to open PSV of Type %2: 0x%1")
@@ -61,9 +62,9 @@ FF7SaveInfo::FORMAT FF7Save::fileDataFormat(QFile &file)
                                                                        : QStringLiteral("Unknown"));
         return FF7SaveInfo::FORMAT::UNKNOWN;
     }
-    if ((file_size == FF7SaveInfo::fileSize(FF7SaveInfo::FORMAT::PSP)) && (file.peek(25)).startsWith(FF7SaveInfo::fileIdentifier(FF7SaveInfo::FORMAT::PSP)))
+    if ((file_size == FF7SaveInfo::fileSize(FF7SaveInfo::FORMAT::PSP)) && (io->peek(25)).startsWith(FF7SaveInfo::fileIdentifier(FF7SaveInfo::FORMAT::PSP)))
         return FF7SaveInfo::FORMAT::PSP;
-    if ((file_size == FF7SaveInfo::fileSize(FF7SaveInfo::FORMAT::VGS)) && (file.peek(25)).startsWith(FF7SaveInfo::fileIdentifier(FF7SaveInfo::FORMAT::VGS)))
+    if ((file_size == FF7SaveInfo::fileSize(FF7SaveInfo::FORMAT::VGS)) && (io->peek(25)).startsWith(FF7SaveInfo::fileIdentifier(FF7SaveInfo::FORMAT::VGS)))
         return FF7SaveInfo::FORMAT::VGS;
     if (file_size % FF7SaveInfo::fileSize(FF7SaveInfo::FORMAT::PSX) == 0)
         return FF7SaveInfo::FORMAT::PSX;
@@ -73,7 +74,14 @@ FF7SaveInfo::FORMAT FF7Save::fileDataFormat(QFile &file)
         return FF7SaveInfo::FORMAT::PDA;
     if (file_size == FF7SaveInfo::fileSize(FF7SaveInfo::FORMAT::DEX))
         return FF7SaveInfo::FORMAT::DEX;
+    if (io->peek(25).startsWith(FF7SaveInfo::fileIdentifier(FF7SaveInfo::FORMAT::RZIP)))
+        return FF7SaveInfo::FORMAT::RZIP;
     return FF7SaveInfo::FORMAT::UNKNOWN;
+}
+
+bool FF7Save::fileFormatIsCompressed(FF7SaveInfo::FORMAT fileFormat)
+{
+    return fileFormat == FF7SaveInfo::FORMAT::RZIP;
 }
 
 bool FF7Save::loadFile(const QString &fileName)
@@ -85,18 +93,30 @@ bool FF7Save::loadFile(const QString &fileName)
     QFile file(fileName);
     if (!file.open(QIODevice::ReadOnly))
         return false;
+    QIODevice *io = &file;
+    QBuffer buff;
 
     FF7SaveInfo::FORMAT fileFormat = fileDataFormat(file);
     if (fileFormat == FF7SaveInfo::FORMAT::UNKNOWN)
         return false;
 
+    if (fileFormatIsCompressed(fileFormat)) {
+        QByteArray uncompressedData = uncompressFile(io);
+        buff.setData(uncompressedData);
+        io = &buff;
+        fileFormat = fileDataFormat(io);
+
+        if (fileFormat == FF7SaveInfo::FORMAT::UNKNOWN)
+            return false;
+    }
+
     setFormat(fileFormat);
     /*~~~~~~~~~~Start Load~~~~~~~~~~*/
-    setFileHeader(file.read(FF7SaveInfo::fileHeaderSize(fileFormat)));
+    setFileHeader(io->read(FF7SaveInfo::fileHeaderSize(fileFormat)));
     for (int i = 0; i < FF7SaveInfo::slotCount(fileFormat); i++) {
-        setSlotHeader(i, file.read(FF7SaveInfo::slotHeaderSize(fileFormat)));
-        setSlotFF7Data(i, file.read(FF7SaveInfo::slotSize()));
-        setSlotFooter(i, file.read(FF7SaveInfo::slotFooterSize(fileFormat)));
+        setSlotHeader(i, io->read(FF7SaveInfo::slotHeaderSize(fileFormat)));
+        setSlotFF7Data(i, io->read(FF7SaveInfo::slotSize()));
+        setSlotFooter(i, io->read(FF7SaveInfo::slotFooterSize(fileFormat)));
     }
     /*~~~~~~~End Load~~~~~~~~~~~~~~*/
     if (FF7SaveInfo::isTypePC(fileFormat)) {
@@ -109,8 +129,8 @@ bool FF7Save::loadFile(const QString &fileName)
     } else if (FF7SaveInfo::isTypeVMC(fileFormat)) {
         QByteArray mc_header;
         int offset = FF7SaveInfo::vmcHeaderOffset(fileFormat);
-        file.seek(offset);
-        mc_header = file.read(FF7SaveInfo::fileHeaderSize(fileFormat));
+        io->seek(offset);
+        mc_header = io->read(FF7SaveInfo::fileHeaderSize(fileFormat));
         for (int i = 0; i < 15; i++) {
             int index = (128 * i) + 138;
             QString temp = QString(mc_header.mid(index, 20));
@@ -120,22 +140,69 @@ bool FF7Save::loadFile(const QString &fileName)
         if (fileFormat == FF7SaveInfo::FORMAT::PSX) {
             SG_Region_String.replace(0, QFileInfo(file).fileName());
         } else {
-            file.seek(FF7SaveInfo::psxSaveNameOffset(fileFormat));
-            SG_Region_String.replace(0, QString(file.read(20)));
+            io->seek(FF7SaveInfo::psxSaveNameOffset(fileFormat));
+            SG_Region_String.replace(0, QString(io->read(20)));
         }
         for (int i = 1; i < 15; i++)
             clearSlot(i);
     } else if (fileFormat == FF7SaveInfo::FORMAT::PDA) {
-        file.seek(0);
-        QString temp = file.read(20);
-        SG_Region_String.replace(0, (temp != invalidRegion) ? file.read(20) : QString());
+        io->seek(0);
+        QString temp = io->read(20);
+        SG_Region_String.replace(0, (temp != invalidRegion) ? io->read(20) : QString());
     } else {
         return false;
     }
-    file.close();
+    io->close();
     filename = fileName;
     setFileModified(false, 0);
     return true;
+}
+
+QByteArray FF7Save::uncompressFile(QIODevice *io)
+{
+    qDebug() << "FF7Save::uncompressFile";
+
+    if (fileFormat != FF7SaveInfo::FORMAT::RZIP) {
+        return QByteArray();
+    }
+
+    // Read header
+    if (!io->seek(8)) {
+        return QByteArray();
+    }
+
+    quint32 chunkSize = 0;
+    quint64 uncompressedDataSize = 0;
+
+    if (io->read((char *)&chunkSize, 4) != 4) {
+        return QByteArray();
+    }
+    if (io->read((char *)&uncompressedDataSize, 8) != 8) {
+        return QByteArray();
+    }
+    qDebug() << "FF7Save::uncompressFile" << chunkSize << uncompressedDataSize;
+
+    QByteArray data;
+
+    forever {
+        // Read chunk
+        quint32 compressedChunkSize = 0;
+
+        if (io->read((char *)&compressedChunkSize, 4) != 4 || compressedChunkSize == 0) {
+            break;
+        }
+        qDebug() << "FF7Save::uncompressFile chunk" << compressedChunkSize;
+
+        QByteArray compressedChunkData = io->read(compressedChunkSize);
+
+        if (compressedChunkData.isEmpty()) {
+            break;
+        }
+
+        data.append(FF7Save::inflateAll(compressedChunkData.constData(), compressedChunkData.size(), chunkSize + chunkSize >> 2));
+    }
+
+    return data;
 }
 
 QByteArray FF7Save::fileHeader(void)
@@ -2615,6 +2682,43 @@ QString FF7Save::md5sum(QString fileName, QString UserID)
     QCryptographicHash md5(QCryptographicHash::Md5);
     md5.addData(ff7file);
     return md5.result().toHex().toLower();
+}
+
+QByteArray FF7Save::inflateAll(const char *data, int size, qsizetype uncompressedSize)
+{
+    QByteArray ret;
+    ret.reserve(uncompressedSize);
+    z_stream z = z_stream();
+    const int windowBits = 15;
+
+    qDebug() << "FF7Save::inflateAll" << size << uncompressedSize;
+
+    z.next_in = reinterpret_cast<Bytef *>(const_cast<char *>(data));
+    z.avail_in = size;
+    inflateInit2(&z, windowBits);
+    z.next_out = reinterpret_cast<Bytef *>(ret.data());
+    z.avail_out = uncompressedSize;
+
+    int err = Z_OK;
+
+    do {
+#if (ZLIB_VERNUM < 0x1280)
+        err = z_inflate(&z, Z_FINISH);
+#else
+        err = inflate(&z, Z_FINISH);
+#endif
+    } while (Z_OK == err);
+
+    if (Z_STREAM_END != err) {
+        ret.clear();
+    } else {
+        ret.resize(uncompressedSize - z.avail_out);
+    }
+    qDebug() << "FF7Save::inflateAll" << z.avail_out << ret.size() << err;
+
+    inflateEnd(&z);
+
+    return ret;
 }
 
 void FF7Save::setFileModified(bool changed, int s)
